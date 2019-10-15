@@ -16,6 +16,7 @@ class QuestionnairesController < ApplicationController
           ((['Teaching Assistant'].include? current_role_name) && assign_instructor_id == @questionnaire.try(:instructor_id))
 
     else
+      # refactor
       ['Super-Administrator',
        'Administrator',
        'Instructor',
