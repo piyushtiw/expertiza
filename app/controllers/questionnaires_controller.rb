@@ -6,6 +6,8 @@ class QuestionnairesController < ApplicationController
 
   before_action :authorize
 
+  MINIMUM_QUESTION_SCORE = 0
+  MAXIMUM_QUESTION_SCORE = 1
   # Check role access for edit questionnaire
   def action_allowed?
     if params[:action] == "edit"
@@ -109,24 +111,26 @@ class QuestionnairesController < ApplicationController
   #   end
   # end
 
-  def create_questionnaire
+  def update_questionnaire_instructor
     @questionnaire = Object.const_get(params[:questionnaire][:type]).new(questionnaire_params)
 
     # TODO: check for Quiz Questionnaire?
     if @questionnaire.type == "QuizQuestionnaire" # checking if it is a quiz questionnaire
       participant_id = params[:pid] # creating a local variable to send as parameter to submitted content if it is a quiz questionnaire
-      @questionnaire.min_question_score = 0
-      @questionnaire.max_question_score = 1
+      @questionnaire.min_question_score = MINIMUM_QUESTION_SCORE
+      @questionnaire.max_question_score = MAXIMUM_QUESTION_SCORE
       author_team = AssignmentTeam.team(Participant.find(participant_id))
 
       @questionnaire.instructor_id = author_team.id # for a team assignment, set the instructor id to the team_id
 
-      @successful_create = true
+      #@successful_create = true
       save
 
-      save_choices @questionnaire.id
-
-      flash[:note] = "The quiz was successfully created." if @successful_create
+      if(params[:new_question] || params[:new_choices])
+        save_choices @questionnaire.id
+      end
+      #flash[:note] = "The quiz was successfully created." if @successful_create
+      flash[:note] = "The quiz was successfully created."
       redirect_to controller: 'submitted_content', action: 'edit', id: participant_id
     else # if it is not a quiz questionnaire
       @questionnaire.instructor_id = Ta.get_my_instructor(session[:user].id) if session[:user].role.name == "Teaching Assistant"
@@ -290,7 +294,7 @@ class QuestionnairesController < ApplicationController
   def create_quiz_questionnaire
     valid = valid_quiz
     if valid.eql?("valid")
-      create_questionnaire
+      update_questionnaire_instructor
     else
       flash[:error] = valid.to_s
       redirect_to :back
@@ -473,7 +477,7 @@ class QuestionnairesController < ApplicationController
   # method to save the choices associated with a question in a quiz to the database
   # only for quiz questionnaire
   def save_choices(questionnaire_id)
-    return unless params[:new_question] or params[:new_choices]
+    # return unless params[:new_question] or params[:new_choices]
     questions = Question.where(questionnaire_id: questionnaire_id)
     question_num = 1
 
@@ -481,9 +485,9 @@ class QuestionnairesController < ApplicationController
       q_type = params[:question_type][question_num.to_s][:type]
       params[:new_choices][question_num.to_s][q_type].keys.each do |choice_key|
         score = if params[:new_choices][question_num.to_s][q_type][choice_key]["weight"] == 1.to_s
-                  1
+                  MAXIMUM_QUESTION_SCORE
                 else
-                  0
+                  MINIMUM_QUESTION_SCORE
                 end
         if q_type == "MultipleChoiceCheckbox"
           q = if params[:new_choices][question_num.to_s][q_type][choice_key][:iscorrect] == 1.to_s
