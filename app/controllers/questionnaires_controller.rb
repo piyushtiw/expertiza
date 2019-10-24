@@ -93,7 +93,7 @@ class QuestionnairesController < ApplicationController
     end
   end
 
-  def create_questionnaire
+  def update_quiz_questionnaire_instructor_id
     @questionnaire = Object.const_get(params[:questionnaire][:type]).new(questionnaire_params)
 
     # TODO: check for Quiz Questionnaire?
@@ -105,12 +105,13 @@ class QuestionnairesController < ApplicationController
 
       @questionnaire.instructor_id = author_team.id # for a team assignment, set the instructor id to the team_id
 
-      @successful_create = true
+      #@successful_create = true
       save
 
       save_choices @questionnaire.id
 
-      flash[:note] = "The quiz was successfully created." if @successful_create
+      #flash[:note] = "The quiz was successfully created." if @successful_create
+      flash[:note] = "The quiz was successfully created."
       redirect_to controller: 'submitted_content', action: 'edit', id: participant_id
     else # if it is not a quiz questionnaire
       @questionnaire.instructor_id = Ta.get_my_instructor(session[:user].id) if session[:user].role.name == "Teaching Assistant"
@@ -274,7 +275,7 @@ class QuestionnairesController < ApplicationController
   def create_quiz_questionnaire
     valid = valid_quiz
     if valid.eql?("valid")
-      create_questionnaire
+      update_quiz_questionnaire_instructor_id
     else
       flash[:error] = valid.to_s
       redirect_to :back
