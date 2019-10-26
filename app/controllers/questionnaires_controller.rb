@@ -120,13 +120,9 @@ class QuestionnairesController < ApplicationController
         questions.each do |question|
           raise "There are responses based on this rubric, we suggest you do not delete it." unless question.answers.empty?
         end
-        questions.each do |question|
-          advices = question.question_advices
-          advices.each(&:delete)
-          question.delete
-        end
-        questionnaire_node = @questionnaire.questionnaire_node
-        questionnaire_node.delete
+
+        # delete all questions and QuestionnaireNode
+        # related to questionnaire with dependent destroy property
         @questionnaire.delete
         undo_link("The questionnaire \"#{name}\" has been successfully deleted.")
       rescue StandardError => e
