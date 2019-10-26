@@ -178,7 +178,7 @@ describe QuestionnairesController do
           allow(AssignmentTeam).to receive(:team).with(participant).and_return(double('AssignmentTeam', id: 6))
           allow_any_instance_of(QuestionnairesController).to receive(:save_choices).with(1).and_return(true)
           # save
-          allow_any_instance_of(QuestionnairesController).to receive(:save_questions).with(1).and_return(true)
+          allow_any_instance_of(QuestionnairesController).to receive(:save_questions).and_return(true)
           allow_any_instance_of(QuestionnairesController).to receive(:undo_link).with(any_args).and_return('')
           post :create_quiz_questionnaire, params
           expect(flash[:note]).to eq('The quiz was successfully created.')

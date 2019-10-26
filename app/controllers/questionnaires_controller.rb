@@ -399,9 +399,9 @@ class QuestionnairesController < ApplicationController
 
   # method to save the choices associated with a question in a quiz to the database
   # only for quiz questionnaire
-  def save_choices
+  def save_choices(questionnaire_id)
     # return unless params[:new_question] or params[:new_choices]
-    questions = Question.where(questionnaire_id: @questionnaire.id)
+    questions = Question.where(questionnaire_id: questionnaire_id)
     question_num = 1
 
     questions.each do |question|
@@ -537,7 +537,7 @@ class QuestionnairesController < ApplicationController
       save
 
       if(params[:new_question] || params[:new_choices])
-        save_choices
+        save_choices @questionnaire.id
       end
       flash[:note] = "The quiz was successfully created."
       redirect_to controller: 'submitted_content', action: 'edit', id: participant_id
