@@ -10,6 +10,10 @@ class QuestionnairesController < ApplicationController
   MAXIMUM_QUESTION_SCORE = 1
   QUESTION_MAX_LABEL = 'Strongly agree'
   QUESTION_MIN_LABEL = 'Strongly disagree'
+  CRITERION_QUESTION_SIZE = '50, 3'
+  DROPDOWN_SCALE = '0|1|2|3|4|5'
+  TEXT_AREA_SIZE = '60, 5'
+  TEXT_FIELD_SIZE = '30'
   # Check role access for edit questionnaire
   def action_allowed?
     if params[:action] == "edit"
@@ -149,14 +153,14 @@ class QuestionnairesController < ApplicationController
     ((num_of_existed_questions + 1)..(num_of_existed_questions + params[:question][:total_num].to_i)).each do |i|
       question = Object.const_get(params[:question][:type]).create(txt: '', questionnaire_id: questionnaire_id, seq: i, type: params[:question][:type], break_before: true)
       if question.is_a? ScoredQuestion
-        question.weight = 1
+        question.weight = MAXIMUM_QUESTION_SCORE
         question.max_label = QUESTION_MIN_LABEL
         question.min_label = QUESTION_MAX_LABEL
       end
-      question.size = '50, 3' if question.is_a? Criterion
-      question.alternatives = '0|1|2|3|4|5' if question.is_a? Dropdown
-      question.size = '60, 5' if question.is_a? TextArea
-      question.size = '30' if question.is_a? TextField
+      question.size = CRITERION_QUESTION_SIZE if question.is_a? Criterion
+      question.alternatives = DROPDOWN_SCALE if question.is_a? Dropdown
+      question.size = TEXT_AREA_SIZE if question.is_a? TextArea
+      question.size = TEXT_FIELD_SIZE if question.is_a? TextField
       begin
         question.save
       rescue StandardError
@@ -203,8 +207,8 @@ class QuestionnairesController < ApplicationController
     if valid_request && Questionnaire::QUESTIONNAIRE_TYPES.include?(params[:model])
       @questionnaire = Object.const_get(params[:model]).new
       @questionnaire.private = params[:private]
-      @questionnaire.min_question_score = 0
-      @questionnaire.max_question_score = 1
+      @questionnaire.min_question_score = MINIMUM_QUESTION_SCORE
+      @questionnaire.max_question_score = MAXIMUM_QUESTION_SCORE
 
       render :new_quiz
     else
