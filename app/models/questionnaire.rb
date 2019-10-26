@@ -86,4 +86,52 @@ class Questionnaire < ActiveRecord::Base
     results = Questionnaire.where("id <> ? and name = ? and instructor_id = ?", id, name, instructor_id)
     errors.add(:name, "Questionnaire names must be unique.") if results.present?
   end
+
+  def create_new_questionnaire_obj(params)
+    if Questionnaire::QUESTIONNAIRE_TYPES.include? params[:questionnaire][:type]
+      questionnaire = Object.const_get(params[:questionnaire][:type]).new 
+      questionnaire.private = params[:questionnaire][:private] == 'true'
+      questionnaire.name = params[:questionnaire][:name]
+      questionnaire.instructor_id = session[:user].id
+      questionnaire.min_question_score = params[:questionnaire][:min_question_score]
+      questionnaire.max_question_score = params[:questionnaire][:max_question_score]
+      questionnaire.type = params[:questionnaire][:type]
+      # Zhewei: Right now, the display_type in 'questionnaires' table and name in 'tree_folders' table are not consistent.
+      # In the future, we need to write migration files to make them consistency.
+      questionnaire.display_type = display_type_for_questionnaire(params)
+      questionnaire.instruction_loc = Questionnaire::DEFAULT_QUESTIONNAIRE_URL
+      questionnaire.save
+
+      create_questionnaire_node
+    else
+      false
+    end
+  end
+
+  private
+
+    def create_questionnaire_node
+      tree_folder = TreeFolder.where(['name like ?', self.display_type]).first
+      parent = FolderNode.find_by(node_object_id: tree_folder.id)
+      QuestionnaireNode.create(parent_id: parent.id, node_object_id: self.id, type: 'QuestionnaireNode')
+    end
+
+    def display_type_for_questionnaire(params)
+      display_type = params[:questionnaire][:type].split('Questionnaire')[0]
+      
+      case display_type
+      when 'AuthorFeedback'
+        display_type = 'Author%Feedback'
+      when 'CourseSurvey'
+        display_type = 'Course%Survey'
+      when 'TeammateReview'
+        display_type = 'Teammate%Review'
+      when 'GlobalSurvey'
+        display_type = 'Global%Survey'
+      when 'AssignmentSurvey'
+        display_type = 'Assignment%Survey'
+      end
+
+      display_type
+    end
 end

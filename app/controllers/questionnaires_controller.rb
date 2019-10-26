@@ -8,6 +8,8 @@ class QuestionnairesController < ApplicationController
 
   MINIMUM_QUESTION_SCORE = 0
   MAXIMUM_QUESTION_SCORE = 1
+  QUESTION_MAX_LABEL = 'Strongly agree'
+  QUESTION_MIN_LABEL = 'Strongly disagree'
   # Check role access for edit questionnaire
   def action_allowed?
     if params[:action] == "edit"
@@ -49,94 +51,17 @@ class QuestionnairesController < ApplicationController
   end
 
   def create
-    if questionnaire_has_name?
-      create_new_questionnaire_obj
-      create_questionnaire_node_for_newly_created_obj
+    # if questionnaire has name create new questionnaire
+    # Create questionnaire node for new questionnaire
+    if questionnaire_has_name? && Questionnaire.create_new_questionnaire_obj(params)
       flash[:success] = 'You have successfully created a questionnaire!'
-      redirect_to @questionnaire
+      redirect_to controller: 'questionnaires', action: 'edit', id: @questionnaire.id
     else
       flash[:error] = 'A rubric or survey must have a title.'
       redirect_to controller: 'questionnaires',
         action: 'new',
         model: params[:questionnaire][:type],
         private: params[:questionnaire][:private]
-    end
-  end
-
-  # def create
-  #   if params[:questionnaire][:name].blank?
-  #     flash[:error] = 'A rubric or survey must have a title.'
-  #     redirect_to controller: 'questionnaires', action: 'new', model: params[:questionnaire][:type], private: params[:questionnaire][:private]
-  #   else
-  #     questionnaire_private = params[:questionnaire][:private] == 'true'
-  #     display_type = params[:questionnaire][:type].split('Questionnaire')[0]
-  #     begin
-  #       @questionnaire = Object.const_get(params[:questionnaire][:type]).new if Questionnaire::QUESTIONNAIRE_TYPES.include? params[:questionnaire][:type]
-  #     rescue StandardError
-  #       flash[:error] = $ERROR_INFO
-  #     end
-  #     begin
-  #       @questionnaire.private = questionnaire_private
-  #       @questionnaire.name = params[:questionnaire][:name]
-  #       @questionnaire.instructor_id = session[:user].id
-  #       @questionnaire.min_question_score = params[:questionnaire][:min_question_score]
-  #       @questionnaire.max_question_score = params[:questionnaire][:max_question_score]
-  #       @questionnaire.type = params[:questionnaire][:type]
-  #       # Zhewei: Right now, the display_type in 'questionnaires' table and name in 'tree_folders' table are not consistent.
-  #       # In the future, we need to write migration files to make them consistency.
-  #       case display_type
-  #       when 'AuthorFeedback'
-  #         display_type = 'Author%Feedback'
-  #       when 'CourseSurvey'
-  #         display_type = 'Course%Survey'
-  #       when 'TeammateReview'
-  #         display_type = 'Teammate%Review'
-  #       when 'GlobalSurvey'
-  #         display_type = 'Global%Survey'
-  #       when 'AssignmentSurvey'
-  #         display_type = 'Assignment%Survey'
-  #       end
-  #       @questionnaire.display_type = display_type
-  #       @questionnaire.instruction_loc = Questionnaire::DEFAULT_QUESTIONNAIRE_URL
-  #       @questionnaire.save
-  #       # Create node
-  #       tree_folder = TreeFolder.where(['name like ?', @questionnaire.display_type]).first
-  #       parent = FolderNode.find_by(node_object_id: tree_folder.id)
-  #       QuestionnaireNode.create(parent_id: parent.id, node_object_id: @questionnaire.id, type: 'QuestionnaireNode')
-  #       flash[:success] = 'You have successfully created a questionnaire!'
-  #     rescue StandardError
-  #       flash[:error] = $ERROR_INFO
-  #     end
-  #     redirect_to controller: 'questionnaires', action: 'edit', id: @questionnaire.id
-  #   end
-  # end
-
-  def update_questionnaire_instructor
-    @questionnaire = Object.const_get(params[:questionnaire][:type]).new(questionnaire_params)
-
-    # TODO: check for Quiz Questionnaire?
-    if @questionnaire.type == "QuizQuestionnaire" # checking if it is a quiz questionnaire
-      participant_id = params[:pid] # creating a local variable to send as parameter to submitted content if it is a quiz questionnaire
-      @questionnaire.min_question_score = MINIMUM_QUESTION_SCORE
-      @questionnaire.max_question_score = MAXIMUM_QUESTION_SCORE
-      author_team = AssignmentTeam.team(Participant.find(participant_id))
-
-      @questionnaire.instructor_id = author_team.id # for a team assignment, set the instructor id to the team_id
-
-      #@successful_create = true
-      save
-
-      if(params[:new_question] || params[:new_choices])
-        save_choices @questionnaire.id
-      end
-      #flash[:note] = "The quiz was successfully created." if @successful_create
-      flash[:note] = "The quiz was successfully created."
-      redirect_to controller: 'submitted_content', action: 'edit', id: participant_id
-    else # if it is not a quiz questionnaire
-      @questionnaire.instructor_id = Ta.get_my_instructor(session[:user].id) if session[:user].role.name == "Teaching Assistant"
-      save
-
-      redirect_to controller: 'tree_display', action: 'list'
     end
   end
 
@@ -228,8 +153,8 @@ class QuestionnairesController < ApplicationController
       question = Object.const_get(params[:question][:type]).create(txt: '', questionnaire_id: questionnaire_id, seq: i, type: params[:question][:type], break_before: true)
       if question.is_a? ScoredQuestion
         question.weight = 1
-        question.max_label = 'Strongly agree'
-        question.min_label = 'Strongly disagree'
+        question.max_label = QUESTION_MIN_LABEL
+        question.min_label = QUESTION_MAX_LABEL
       end
       question.size = '50, 3' if question.is_a? Criterion
       question.alternatives = '0|1|2|3|4|5' if question.is_a? Dropdown
@@ -505,7 +430,7 @@ class QuestionnairesController < ApplicationController
           else
             q = QuizQuestionChoice.new(txt: "True", iscorrect: "false", question_id: question.id)
             q.save
-            q = QuizQuestionChoice.new(txt: "False", iscorrect: "true", question_id: question.id)
+            q = QuizQuestionChoice.create(txt: "False", iscorrect: "true", question_id: question.id)
             q.save
           end
         else
@@ -597,38 +522,35 @@ class QuestionnairesController < ApplicationController
     params[:questionnaire][:name].present?
   end
 
-  def create_new_questionnaire_obj
-    questionnaire_private = params[:questionnaire][:private] == 'true'
-    display_type = params[:questionnaire][:type].split('Questionnaire')[0]
-    @questionnaire = Object.const_get(params[:questionnaire][:type]).new if Questionnaire::QUESTIONNAIRE_TYPES.include? params[:questionnaire][:type]
-    @questionnaire.private = questionnaire_private
-    @questionnaire.name = params[:questionnaire][:name]
-    @questionnaire.instructor_id = session[:user].id
-    @questionnaire.min_question_score = params[:questionnaire][:min_question_score]
-    @questionnaire.max_question_score = params[:questionnaire][:max_question_score]
-    @questionnaire.type = params[:questionnaire][:type]
-    # Zhewei: Right now, the display_type in 'questionnaires' table and name in 'tree_folders' table are not consistent.
-    # In the future, we need to write migration files to make them consistency.
-    case display_type
-    when 'AuthorFeedback'
-      display_type = 'Author%Feedback'
-    when 'CourseSurvey'
-      display_type = 'Course%Survey'
-    when 'TeammateReview'
-      display_type = 'Teammate%Review'
-    when 'GlobalSurvey'
-      display_type = 'Global%Survey'
-    when 'AssignmentSurvey'
-      display_type = 'Assignment%Survey'
-    end
-    @questionnaire.display_type = display_type
-    @questionnaire.instruction_loc = Questionnaire::DEFAULT_QUESTIONNAIRE_URL
-    @questionnaire.save
-  end
+  def update_questionnaire_instructor
 
-  def create_questionnaire_node_for_newly_created_obj
-    tree_folder = TreeFolder.where(['name like ?', @questionnaire.display_type]).first
-    parent = FolderNode.find_by(node_object_id: tree_folder.id)
-    QuestionnaireNode.create(parent_id: parent.id, node_object_id: @questionnaire.id, type: 'QuestionnaireNode')
+    # if quiz questionnaire assign instructor id
+    # else assign ta id
+    @questionnaire = Object.const_get(params[:questionnaire][:type]).new(questionnaire_params)
+
+    # TODO: check for Quiz Questionnaire?
+    if @questionnaire.type == "QuizQuestionnaire" # checking if it is a quiz questionnaire
+      participant_id = params[:pid] # creating a local variable to send as parameter to submitted content if it is a quiz questionnaire
+      @questionnaire.min_question_score = MINIMUM_QUESTION_SCORE
+      @questionnaire.max_question_score = MAXIMUM_QUESTION_SCORE
+      author_team = AssignmentTeam.team(Participant.find(participant_id))
+
+      @questionnaire.instructor_id = author_team.id # for a team assignment, set the instructor id to the team_id
+
+      #@successful_create = true
+      save
+
+      if(params[:new_question] || params[:new_choices])
+        save_choices @questionnaire.id
+      end
+      #flash[:note] = "The quiz was successfully created." if @successful_create
+      flash[:note] = "The quiz was successfully created."
+      redirect_to controller: 'submitted_content', action: 'edit', id: participant_id
+    else # if it is not a quiz questionnaire
+      @questionnaire.instructor_id = Ta.get_my_instructor(session[:user].id) if session[:user].role.name == "Teaching Assistant"
+      save
+
+      redirect_to controller: 'tree_display', action: 'list'
+    end
   end
 end
