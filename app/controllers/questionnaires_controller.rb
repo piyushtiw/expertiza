@@ -185,7 +185,11 @@ class QuestionnairesController < ApplicationController
       
       question.alternatives = DROPDOWN_SCALE if question.is_a? Dropdown
       question.size = question_size(question)
-      question.save
+      begin
+        question.save
+      rescue StandardError => e
+        flash[:error] = e.message
+      end
     end
     redirect_to action: 'edit', id: questionnaire_id
   end
