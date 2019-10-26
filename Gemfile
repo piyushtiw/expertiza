@@ -80,7 +80,6 @@ group :development do
   gem 'pry-remote'
   gem 'quiet_assets'
   gem 'rubocop'
-  gem 'byebug'
 end
 
 group :test do
