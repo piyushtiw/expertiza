@@ -53,9 +53,10 @@ class QuestionnairesController < ApplicationController
   def create
     # if questionnaire has name create new questionnaire
     # Create questionnaire node for new questionnaire
-    if questionnaire_has_name? && Questionnaire.create_new_questionnaire_obj(params)
+    if questionnaire_has_name?
+      questionnaire = Questionnaire.create_new_questionnaire_obj(params, session)
       flash[:success] = 'You have successfully created a questionnaire!'
-      redirect_to controller: 'questionnaires', action: 'edit', id: @questionnaire.id
+      redirect_to controller: 'questionnaires', action: 'edit', id: questionnaire.id
     else
       flash[:error] = 'A rubric or survey must have a title.'
       redirect_to controller: 'questionnaires',
