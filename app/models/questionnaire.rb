@@ -87,8 +87,10 @@ class Questionnaire < ActiveRecord::Base
     errors.add(:name, "Questionnaire names must be unique.") if results.present?
   end
 
+# This method will be called in controller to create the questionnaire
   class << self
     def create_new_questionnaire_obj(params, session)
+      # Assigning values passed from UI in params[:id] to questionnaire object
       if Questionnaire::QUESTIONNAIRE_TYPES.include? params[:questionnaire][:type]
         questionnaire = Object.const_get(params[:questionnaire][:type]).new 
         questionnaire.private = params[:questionnaire][:private] == 'true'
@@ -105,8 +107,8 @@ class Questionnaire < ActiveRecord::Base
         if questionnaire.save
           create_questionnaire_node(questionnaire)
         end
-
-        questionnaire
+        # returning the questionnaire obejct to calling method create in controller
+        questionnaire 
       else
         false
       end
@@ -114,12 +116,14 @@ class Questionnaire < ActiveRecord::Base
 
     private
 
+# This method is used to create Treenode for newly created questionnaire
       def create_questionnaire_node(questionnaire)
         tree_folder = TreeFolder.where(['name like ?', questionnaire.display_type]).first
         parent = FolderNode.find_by(node_object_id: tree_folder.id)
         QuestionnaireNode.create(parent_id: parent.id, node_object_id: questionnaire.id, type: 'QuestionnaireNode')
       end
-
+      
+ # Displaying the newly created questionnaire
       def display_type_for_questionnaire(params)
         display_type = params[:questionnaire][:type].split('Questionnaire')[0]
         
