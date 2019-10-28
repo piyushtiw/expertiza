@@ -64,7 +64,7 @@ class QuestionnairesController < ApplicationController
     # if questionnaire has name create new questionnaire
     # Create questionnaire node for new questionnaire
     if questionnaire_has_name? 
-    # Calling create_new_questionnnaire_obj method from questionnaire Model  
+      # Calling create_new_questionnnaire_obj method from questionnaire Model  
       @questionnaire = Questionnaire.create_new_questionnaire_obj(params, session)
       flash[:success] = 'You have successfully created a questionnaire!'
       redirect_to controller: 'questionnaires', action: 'edit', id: @questionnaire.id
@@ -101,14 +101,8 @@ class QuestionnairesController < ApplicationController
           params[:question].each_pair do |k, v|
             @question = Question.find(k)
             # example of 'v' value
-            # {
-            #   "seq"=>"1.0",
-            #   "txt"=>"WOW",
-            #   "weight"=>"1",
-            #   "size"=>"50,3",
-            #   "max_label"=>"Strong agree",
-            #   "min_label"=>"Not agree"
-            # }
+            # { "seq"=>"1.0", "txt"=>"WOW", "weight"=>"1",
+            #   "size"=>"50,3", "min_label"=>"Not agree", "max_label"=>"Strong agree" }
             v.each_pair do |key, value|
               @question.send(key + '=', value) if @question.send(key) != value
             end
