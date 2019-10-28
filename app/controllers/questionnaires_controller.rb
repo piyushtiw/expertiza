@@ -6,7 +6,8 @@ class QuestionnairesController < ApplicationController
 
   before_action :authorize
 
-  MINIMUM_QUESTION_SCORE = 0
+  #Declaring Constants values
+  MINIMUM_QUESTION_SCORE = 0 
   MAXIMUM_QUESTION_SCORE = 1
   QUESTION_MAX_LABEL = 'Strongly agree'
   QUESTION_MIN_LABEL = 'Strongly disagree'
@@ -62,7 +63,8 @@ class QuestionnairesController < ApplicationController
   def create
     # if questionnaire has name create new questionnaire
     # Create questionnaire node for new questionnaire
-    if questionnaire_has_name?
+    if questionnaire_has_name? 
+    # Calling create_new_questionnnaire_obj method from questionnaire Model  
       @questionnaire = Questionnaire.create_new_questionnaire_obj(params, session)
       flash[:success] = 'You have successfully created a questionnaire!'
       redirect_to controller: 'questionnaires', action: 'edit', id: @questionnaire.id
@@ -162,7 +164,7 @@ class QuestionnairesController < ApplicationController
   end
 
   # Zhewei: This method is used to add new questions when editing questionnaire.
-  def add_new_questions
+  def add_new_questions 
     num_of_existed_questions = Questionnaire.find(params[:id]).questions.size
     question_nums =params[:question][:total_num].to_i
     total_question_nums = ((num_of_existed_questions + 1)..(num_of_existed_questions + question_nums))
@@ -177,9 +179,9 @@ class QuestionnairesController < ApplicationController
       )
       
       if question.is_a? ScoredQuestion
-        question.weight = MAXIMUM_QUESTION_SCORE
-        question.max_label = QUESTION_MIN_LABEL
-        question.min_label = QUESTION_MAX_LABEL
+        question.weight = MAXIMUM_QUESTION_SCORE #1
+        question.max_label = QUESTION_MIN_LABEL #'Strongly Disagree'
+        question.min_label = QUESTION_MAX_LABEL #'Strongly Agree'
       end
       
       question.alternatives = DROPDOWN_SCALE if question.is_a? Dropdown
@@ -187,7 +189,7 @@ class QuestionnairesController < ApplicationController
       begin
         question.save
       rescue StandardError => e
-        flash[:error] = e.message
+        flash[:error] = e.message              #Sending error message
       end
     end
     redirect_to action: 'edit', id: params[:id]
