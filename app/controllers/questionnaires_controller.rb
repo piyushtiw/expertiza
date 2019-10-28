@@ -234,8 +234,8 @@ class QuestionnairesController < ApplicationController
     if valid_request && Questionnaire::QUESTIONNAIRE_TYPES.include?(params[:model])
       @questionnaire = Object.const_get(params[:model]).new
       @questionnaire.private = params[:private]
-      @questionnaire.min_question_score = MINIMUM_QUESTION_SCORE
-      @questionnaire.max_question_score = MAXIMUM_QUESTION_SCORE
+      @questionnaire.min_question_score = MINIMUM_QUESTION_SCORE #0
+      @questionnaire.max_question_score = MAXIMUM_QUESTION_SCORE #1
 
       render :new_quiz
     else
@@ -244,10 +244,11 @@ class QuestionnairesController < ApplicationController
   end
 
   # seperate method for creating a quiz questionnaire because of differences in permission
+  # calling private method to update instructor ID  
   def create_quiz_questionnaire
     valid = valid_quiz
     if valid.eql?("valid")
-      update_questionnaire_instructor
+      update_questionnaire_instructor 
     else
       flash[:error] = valid.to_s
       redirect_to :back
