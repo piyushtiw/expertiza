@@ -123,7 +123,7 @@ describe QuizQuestionnaireController do
           allow(AssignmentTeam).to receive(:team).with(participant).and_return(double('AssignmentTeam', id: 6))
           allow_any_instance_of(QuizQuestionnaireController).to receive(:save_choices).with(1).and_return(true)
           # save
-          allow_any_instance_of(QuizQuestionnaireController).to receive(:save_questions).with(1).and_return(true)
+          allow_any_instance_of(QuizQuestionnaireController).to receive(:save_questions).and_return(true)
           allow_any_instance_of(QuizQuestionnaireController).to receive(:undo_link).with(any_args).and_return('')
           post :create_quiz_questionnaire, params
           expect(flash[:note]).to eq('The quiz was successfully created.')
@@ -280,7 +280,10 @@ describe QuizQuestionnaireController do
                                                       {'1' => {iscorrect: '1', txt: 'a31'},
                                                        '2' => {iscorrect: '0', txt: 'a32'},
                                                        '3' => {iscorrect: '1', txt: 'a33'},
-                                                       '4' => {iscorrect: '0', txt: 'a34'}}}}}
+                                                       '4' => {iscorrect: '0', txt: 'a34'}}}},
+                  question_weights: {'1' => {txt: '1'},
+                                    '2' => {txt: '1'},
+                                    '3' => {txt: '1'}}}
         questionnaire = double('Questionnaire')
         allow(Questionnaire).to receive(:find).with('1').and_return(questionnaire)
         allow(questionnaire).to receive(:update_attributes).with(any_args).and_return(true)

@@ -29,8 +29,8 @@ class QuizQuestionnaireController < QuestionnairesController
     if valid_request && Questionnaire::QUESTIONNAIRE_TYPES.include?(params[:model])
       @questionnaire = Object.const_get(params[:model]).new
       @questionnaire.private = params[:private]
-      @questionnaire.min_question_score = 0
-      @questionnaire.max_question_score = 1
+      @questionnaire.min_question_score = QUESTION_MIN_SCORE
+      @questionnaire.max_question_score = QUESTION_MAX_SCORE
       render 'questionnaires/new_quiz'
     else
       redirect_to controller: 'submitted_content', action: 'view', id: params[:pid]
@@ -43,8 +43,8 @@ class QuizQuestionnaireController < QuestionnairesController
     if valid.eql?("valid")
       @questionnaire = Object.const_get(params[:questionnaire][:type]).new(questionnaire_params)
       participant_id = params[:pid] # creating a local variable to send as parameter to submitted content if it is a quiz questionnaire
-      @questionnaire.min_question_score = 0
-      @questionnaire.max_question_score = 1
+      @questionnaire.min_question_score = QUESTION_MIN_SCORE
+      @questionnaire.max_question_score = QUESTION_MAX_SCORE
       author_team = AssignmentTeam.team(Participant.find(participant_id))
 
       @questionnaire.instructor_id = author_team.id # for a team assignment, set the instructor id to the team_id
@@ -86,6 +86,7 @@ class QuizQuestionnaireController < QuestionnairesController
       params[:question].each_key do |qid|
         @question = Question.find(qid)
         @question.txt = params[:question][qid.to_sym][:txt]
+        @question.weight = params[:question_weights][qid.to_sym][:txt]
         @question.save
 
         @quiz_question_choices = QuizQuestionChoice.where(question_id: qid)
@@ -157,13 +158,13 @@ class QuizQuestionnaireController < QuestionnairesController
   def save
     @questionnaire.save!
 
-    save_questions @questionnaire.id if !@questionnaire.id.nil? and @questionnaire.id > 0
+    save_questions
     undo_link("Questionnaire \"#{@questionnaire.name}\" has been updated successfully. ")
   end
 
-  def save_questions(questionnaire_id)
-    delete_questions questionnaire_id
-    save_new_questions questionnaire_id
+  def save_questions
+    delete_questions
+    save_new_questions
     if params[:question]
       params[:question].each_key do |question_key|
         if params[:question][question_key][:txt].strip.empty?

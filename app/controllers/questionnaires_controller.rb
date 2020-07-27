@@ -6,15 +6,26 @@ class QuestionnairesController < ApplicationController
 
   before_action :authorize
 
+  #Declaring Constants values
+  QUESTION_MIN_SCORE = 0
+  QUESTION_MAX_SCORE = 1
+  QUESTION_MAX_LABEL = 'Strongly agree'
+  QUESTION_MIN_LABEL = 'Strongly disagree'
+  QUESTION_CRITERION_SIZE = '50, 3'
+  DROPDOWN_SCALE = '0|1|2|3|4|5'
+  TEXT_AREA_SIZE = '60, 5'
+  TEXT_FIELD_SIZE = '30'
+
   # Check role access for edit questionnaire
   def action_allowed?
     if params[:action] == "edit"
       @questionnaire = Questionnaire.find(params[:id])
       (['Super-Administrator',
         'Administrator'].include? current_role_name) ||
-          ((['Instructor'].include? current_role_name) && current_user_id?(@questionnaire.try(:instructor_id))) ||
-          ((['Teaching Assistant'].include? current_role_name) && session[:user].instructor_id == @questionnaire.try(:instructor_id))
-
+          ((['Instructor'].include? current_role_name) && 
+            current_user_id?(@questionnaire.try(:instructor_id))) ||
+          ((['Teaching Assistant'].include? current_role_name) && 
+            session[:user].instructor_id == @questionnaire.try(:instructor_id))
     else
       ['Super-Administrator',
        'Administrator',
@@ -35,7 +46,8 @@ class QuestionnairesController < ApplicationController
       undo_link("Copy of questionnaire #{@questionnaire.name} has been created successfully.")
       redirect_to controller: 'questionnaires', action: 'view', id: @questionnaire.id
     rescue StandardError
-      flash[:error] = 'The questionnaire was not able to be copied. Please check the original course for missing information.' + $ERROR_INFO.to_s
+      flash[:error] = 'The questionnaire was not able to be copied.'\
+        ' Please check the original course for missing information.' + $ERROR_INFO.to_s
       redirect_to action: 'list', controller: 'tree_display'
     end
   end
@@ -46,7 +58,7 @@ class QuestionnairesController < ApplicationController
 
   def new
     begin
-      @questionnaire = Object.const_get(params[:model].split.join).new if Questionnaire::QUESTIONNAIRE_TYPES.include? params[:model]
+      @questionnaire = Object.const_get(params[:model].split.join).new if Questionnaire::QUESTIONNAIRE_TYPES.include? params[:model].split.join
     rescue StandardError
       flash[:error] = $ERROR_INFO
     end
@@ -74,7 +86,7 @@ class QuestionnairesController < ApplicationController
         # Zhewei: Right now, the display_type in 'questionnaires' table and name in 'tree_folders' table are not consistent.
         # In the future, we need to write migration files to make them consistency.
         # E1903 : We are not sure of other type of cases, so have added a if statement. If there are only 5 cases, remove the if statement
-        if %w[AuthorFeedback CourseSurvey TeammateReview GlobalSurvey AssignmentSurvey].include?(display_type)
+        if %w[AuthorFeedback CourseSurvey TeammateReview GlobalSurvey AssignmentSurvey BookmarkRating].include?(display_type)
           display_type = (display_type.split /(?=[A-Z])/).join("%")
         end
         @questionnaire.display_type = display_type
@@ -89,17 +101,12 @@ class QuestionnairesController < ApplicationController
         flash[:error] = $ERROR_INFO
       end
       redirect_to controller: 'questionnaires', action: 'edit', id: @questionnaire.id
-    end
-  end
-
-  def create_questionnaire
-    @questionnaire = Object.const_get(params[:questionnaire][:type]).new(questionnaire_params)
-    # Create Quiz content has been moved to Quiz Questionnaire Controller
-    if @questionnaire.type != "QuizQuestionnaire" # checking if it is a quiz questionnaire
-      @questionnaire.instructor_id = Ta.get_my_instructor(session[:user].id) if session[:user].role.name == "Teaching Assistant"
-      save
-
-      redirect_to controller: 'tree_display', action: 'list'
+    else
+      flash[:error] = 'A rubric or survey must have a title.'
+      redirect_to controller: 'questionnaires',
+        action: 'new',
+        model: params[:questionnaire][:type],
+        private: params[:questionnaire][:private]
     end
   end
 
@@ -157,13 +164,6 @@ class QuestionnairesController < ApplicationController
         questions.each do |question|
           raise "There are responses based on this rubric, we suggest you do not delete it." unless question.answers.empty?
         end
-        questions.each do |question|
-          advices = question.question_advices
-          advices.each(&:delete)
-          question.delete
-        end
-        questionnaire_node = @questionnaire.questionnaire_node
-        questionnaire_node.delete
         @questionnaire.delete
         undo_link("The questionnaire \"#{name}\" has been successfully deleted.")
       rescue StandardError => e
@@ -185,31 +185,37 @@ class QuestionnairesController < ApplicationController
 
   # Zhewei: This method is used to add new questions when editing questionnaire.
   def add_new_questions
-    questionnaire_id = params[:id] unless params[:id].nil?
-    num_of_existed_questions = Questionnaire.find(questionnaire_id).questions.size
-    ((num_of_existed_questions + 1)..(num_of_existed_questions + params[:question][:total_num].to_i)).each do |i|
-      question = Object.const_get(params[:question][:type]).create(txt: '', questionnaire_id: questionnaire_id, seq: i, type: params[:question][:type], break_before: true)
+    num_of_existed_questions = Questionnaire.find(params[:id]).questions.size
+    question_nums =params[:question][:total_num].to_i
+    total_question_nums = ((num_of_existed_questions + 1)..(num_of_existed_questions + question_nums))
+
+    total_question_nums.each do |i|
+      question = Object.const_get(params[:question][:type]).create(
+          txt: '',
+          questionnaire_id: params[:id],
+          seq: i,
+          type: params[:question][:type],
+          break_before: true
+      )
       if question.is_a? ScoredQuestion
-        question.weight = 1
-        question.max_label = 'Strongly agree'
-        question.min_label = 'Strongly disagree'
+        question.weight = QUESTION_MAX_SCORE
+        question.min_label = QUESTION_MIN_LABEL
+        question.max_label = QUESTION_MAX_LABEL
       end
-      question.size = '50, 3' if question.is_a? Criterion
-      question.alternatives = '0|1|2|3|4|5' if question.is_a? Dropdown
-      question.size = '60, 5' if question.is_a? TextArea
-      question.size = '30' if question.is_a? TextField
+      
+      question.alternatives = DROPDOWN_SCALE if question.is_a? Dropdown
+      question.size = question_size(question)
       begin
         question.save
       rescue StandardError
         flash[:error] = $ERROR_INFO
       end
     end
-    redirect_to edit_questionnaire_path(questionnaire_id.to_sym)
+    redirect_to edit_questionnaire_path(params[:id].to_sym)
   end
 
   # Zhewei: This method is used to save all questions in current questionnaire.
   def save_all_questions
-    questionnaire_id = params[:id]
     begin
       if params[:save]
         params[:question].each_pair do |k, v|
@@ -230,8 +236,8 @@ class QuestionnairesController < ApplicationController
 
     if params[:view_advice]
       redirect_to controller: 'advice', action: 'edit_advice', id: params[:id]
-    elsif !questionnaire_id.nil?
-      redirect_to edit_questionnaire_path(questionnaire_id.to_sym)
+    elsif params[:id].present?
+      redirect_to edit_questionnaire_path(params[:id])
     end
   end
 
@@ -241,7 +247,7 @@ class QuestionnairesController < ApplicationController
   def save
     @questionnaire.save!
 
-    save_questions @questionnaire.id if !@questionnaire.id.nil? and @questionnaire.id > 0
+    save_questions
     # We do not create node for quiz questionnaires
     if @questionnaire.type != "QuizQuestionnaire"
       p_folder = TreeFolder.find_by(name: @questionnaire.display_type)
@@ -252,18 +258,20 @@ class QuestionnairesController < ApplicationController
   end
 
   # save questions that have been added to a questionnaire
-  def save_new_questions(questionnaire_id)
+  def save_new_questions
     if params[:new_question]
       # The new_question array contains all the new questions
       # that should be saved to the database
-      params[:new_question].keys.each do |question_key|
+      params[:new_question].keys.each_with_index do |question_key, index|
         q = Question.new
         q.txt = params[:new_question][question_key]
-        q.questionnaire_id = questionnaire_id
+        q.questionnaire_id = @questionnaire.id
         q.type = params[:question_type][question_key][:type]
         q.seq = question_key.to_i
         if @questionnaire.type == "QuizQuestionnaire"
-          q.weight = 1 # setting the weight to 1 for quiz questionnaire since the model validates this field
+          # using the weight user enters when creating quiz
+          weight_key = "question_#{index + 1}"
+          q.weight = params[:question_weights][weight_key.to_sym]
         end
         q.save unless q.txt.strip.empty?
       end
@@ -271,10 +279,9 @@ class QuestionnairesController < ApplicationController
   end
 
   # delete questions from a questionnaire
-  # @param [Object] questionnaire_id
-  def delete_questions(questionnaire_id)
+  def delete_questions
     # Deletes any questions that, as a result of the edit, are no longer in the questionnaire
-    questions = Question.where("questionnaire_id = ?", questionnaire_id)
+    questions = Question.where("questionnaire_id = ?", @questionnaire.id)
     @deleted_questions = []
     questions.each do |question|
       should_delete = true
@@ -293,10 +300,9 @@ class QuestionnairesController < ApplicationController
   end
 
   # Handles questions whose wording changed as a result of the edit
-  # @param [Object] questionnaire_id
-  def save_questions(questionnaire_id)
-    delete_questions questionnaire_id
-    save_new_questions questionnaire_id
+  def save_questions
+    delete_questions
+    save_new_questions
 
     if params[:question]
       params[:question].keys.each do |question_key|
@@ -320,6 +326,20 @@ class QuestionnairesController < ApplicationController
   def question_params
     params.require(:question).permit(:txt, :weight, :questionnaire_id, :seq, :type, :size,
                                      :alternatives, :break_before, :max_label, :min_label)
+  end
+
+  def question_size(question)
+    if question.is_a? Criterion
+    QUESTION_CRITERION_SIZE
+    elsif question.is_a? TextArea
+    TEXT_AREA_SIZE
+    elsif question.is_a? TextField
+    TEXT_FIELD_SIZE
+    end
+  end
+
+  def questionnaire_has_name?
+    params[:questionnaire][:name].present?
   end
 
   # FIXME: These private methods belong in the Questionnaire model
